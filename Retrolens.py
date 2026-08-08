@@ -9,9 +9,11 @@ from typing import Dict, List, Tuple, Callable
 
 import cv2
 import mediapipe as mp
+from mediapipe.python.solutions import hands
+from mediapipe.python.solutions import drawing_utils as mp_drawing
 import numpy as np
 
-
+"""
 @dataclass
 class PipelineConfig:
     cam_index: int = 0
@@ -21,7 +23,16 @@ class PipelineConfig:
     filter_cooldown_sec: float = 0.15
     mode_cooldown_sec: float = 1.2
     fist_dist_threshold_px: float = 80.0
-
+"""
+@dataclass
+class PipelineConfig:
+    cam_index: int = 0
+    frame_width: int = 0   # 0 = auto detect dari kamera
+    frame_height: int = 0  # 0 = auto detect dari kamera
+    pinch_threshold_px: float = 45.0
+    filter_cooldown_sec: float = 0.15
+    mode_cooldown_sec: float = 1.2
+    fist_dist_threshold_px: float = 80.0
 
 class FilterBank:
     @staticmethod
@@ -165,8 +176,8 @@ class PortalProcessor:
         self.last_switch_time = 0.0
         self.last_mode_toggle = 0.0
 
-        self.mp_hands = mp.solutions.hands
-        self.mp_draw = mp.solutions.drawing_utils
+        self.mp_hands = hands
+        self.mp_draw = mp_drawing
         self.detector = self.mp_hands.Hands(
             static_image_mode=False,
             max_num_hands=2,
@@ -271,11 +282,14 @@ class PortalProcessor:
         cv2.putText(frame, f"MODE: {mode_str} [Key 'C' / Dual Fist]", (15, 25), cv2.FONT_HERSHEY_SIMPLEX, 0.55, (0, 255, 255), 2)
         cv2.putText(frame, f"FILTER: {self.current_filter_name.upper()} [Pinch / Key 'N'/'P']", (15, 50), cv2.FONT_HERSHEY_SIMPLEX, 0.55, (255, 255, 255), 2)
 
-
+"""
 def main() -> None:
     cfg = PipelineConfig()
     processor = PortalProcessor(cfg)
     cap = cv2.VideoCapture(cfg.cam_index)
+    cap.set(cv2.CAP_PROP_FRAME_WIDTH, 1280)
+    cap.set(cv2.CAP_PROP_FRAME_HEIGHT, 720)
+    cap.set(cv2.CAP_PROP_FPS, 30)
 
     if not cap.isOpened():
         print("[ERROR] Kamera tidak terdeteksi!")
@@ -288,7 +302,7 @@ def main() -> None:
             break
 
         out_frame = processor.process_frame(frame)
-        cv2.imshow("RetroLens Engine", out_frame)
+        cv2.imshow("Portal Filter Hands", out_frame)
 
         key = cv2.waitKey(1) & 0xFF
         if key == ord("q"):
@@ -304,7 +318,61 @@ def main() -> None:
 
     cap.release()
     cv2.destroyAllWindows()
+"""
+def main() -> None:
+    cfg = PipelineConfig()
+    cap = cv2.VideoCapture(cfg.cam_index)
 
+    if not cap.isOpened():
+        print("[ERROR] Kamera tidak terdeteksi!")
+        return
+
+    # Ambil resolusi asli kamera
+    cam_w = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
+    cam_h = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
+    print(f"[INFO] Resolusi kamera: {cam_w}x{cam_h}")
+
+    # Set resolusi ke processor sesuai kamera
+    cfg.frame_width = cam_w
+    cfg.frame_height = cam_h
+
+    processor = PortalProcessor(cfg)
+
+    # Setup window resizable
+    cv2.namedWindow("RetroLens Engine", cv2.WINDOW_NORMAL)
+    cv2.resizeWindow("RetroLens Engine", cam_w, cam_h)
+
+    is_fullscreen = False
+
+    while True:
+        ret, frame = cap.read()
+        if not ret:
+            print("[ERROR] Gagal membaca frame kamera.")
+            break
+
+        out_frame = processor.process_frame(frame)
+        cv2.imshow("RetroLens Engine", out_frame)
+
+        key = cv2.waitKey(1) & 0xFF
+        if key == ord("q"):
+            break
+        elif key == ord("f"):  # F = toggle fullscreen
+            is_fullscreen = not is_fullscreen
+            if is_fullscreen:
+                cv2.setWindowProperty("RetroLens Engine", cv2.WND_PROP_FULLSCREEN, cv2.WINDOW_FULLSCREEN)
+            else:
+                cv2.setWindowProperty("RetroLens Engine", cv2.WND_PROP_FULLSCREEN, cv2.WINDOW_NORMAL)
+        elif key == ord("c"):
+            processor.is_3d_mode = not processor.is_3d_mode
+        elif key == ord("n"):
+            processor.cycle_filter(1)
+        elif key == ord("p"):
+            processor.cycle_filter(-1)
+        elif key == ord("s"):
+            cv2.imwrite(f"cap_{int(time.time())}.png", out_frame)
+
+    cap.release()
+    cv2.destroyAllWindows()
 
 if __name__ == "__main__":
     main()

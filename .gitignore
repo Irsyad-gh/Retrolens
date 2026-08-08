@@ -21,3 +21,8 @@ Thumbs.db
 # Editor
 .vscode/
 .idea/
+
+.venv/
+__pycache__/
+*.pyc
+cap_*.png
