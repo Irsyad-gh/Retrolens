@@ -237,12 +237,11 @@ class PortalProcessor:
 
         if results.multi_hand_landmarks:
             for hand_lm in results.multi_hand_landmarks:
-                # Tracking tangan tetap berjalan di background, tapi tidak digambar ke frame
+                
                 lm = hand_lm.landmark
                 tips = [(int(lm[i].x * self.cfg.frame_width), int(lm[i].y * self.cfg.frame_height)) for i in [4, 8, 12, 16, 20]]
                 all_hand_tips.append(tips)
 
-                # Fast Pinch
                 if GeometryUtils.euclidean_dist(tips[0], tips[4]) < self.cfg.pinch_threshold_px:
                     if now - self.last_switch_time > self.cfg.filter_cooldown_sec:
                         self.cycle_filter(1)
@@ -251,7 +250,6 @@ class PortalProcessor:
                 if GeometryUtils.is_fist_closed(lm, self.cfg.frame_width, self.cfg.frame_height, self.cfg.fist_dist_threshold_px):
                     fist_count += 1
 
-            # Dual Fist Mode Switch
             if fist_count == 2 and (now - self.last_mode_toggle > self.cfg.mode_cooldown_sec):
                 self.is_3d_mode = not self.is_3d_mode
                 self.last_mode_toggle = now
@@ -259,15 +257,11 @@ class PortalProcessor:
             if self.is_3d_mode:
                 if len(all_hand_tips) == 2:
                     t1, t2 = all_hand_tips[0], all_hand_tips[1]
-                    # tips index: 0=thumb, 1=index, 2=middle, 3=ring, 4=pinky
 
-                    # Panel 1: dikendalikan 4 jari (jempol + telunjuk kedua tangan)
                     panel1 = [t1[0], t2[0], t2[1], t1[1]]
 
-                    # Panel 2: 2 titik terhubung dari panel 1 (telunjuk) + 2 jari baru (jari tengah)
                     panel2 = [t1[1], t2[1], t2[2], t1[2]]
 
-                    # Panel 3: 2 titik terhubung dari panel 2 (jari tengah) + 2 jari baru (jari manis)
                     panel3 = [t1[2], t2[2], t2[3], t1[3]]
 
                     frame = self.render_portal(frame, panel1, self.current_filter_name)
@@ -296,43 +290,6 @@ class PortalProcessor:
         cv2.putText(frame, f"MODE: {mode_str} [Key 'C' / Dual Fist]", (15, 25), cv2.FONT_HERSHEY_SIMPLEX, 0.55, (0, 255, 255), 2)
         cv2.putText(frame, f"FILTER: {self.current_filter_name.upper()} [Pinch / Key 'N'/'P']", (15, 50), cv2.FONT_HERSHEY_SIMPLEX, 0.55, (255, 255, 255), 2)
 
-"""
-def main() -> None:
-    cfg = PipelineConfig()
-    processor = PortalProcessor(cfg)
-    cap = cv2.VideoCapture(cfg.cam_index)
-    cap.set(cv2.CAP_PROP_FRAME_WIDTH, 1280)
-    cap.set(cv2.CAP_PROP_FRAME_HEIGHT, 720)
-    cap.set(cv2.CAP_PROP_FPS, 30)
-
-    if not cap.isOpened():
-        print("[ERROR] Kamera tidak terdeteksi!")
-        return
-
-    while True:
-        ret, frame = cap.read()
-        if not ret:
-            print("[ERROR] Gagal membaca frame kamera.")
-            break
-
-        out_frame = processor.process_frame(frame)
-        cv2.imshow("Portal Filter Hands", out_frame)
-
-        key = cv2.waitKey(1) & 0xFF
-        if key == ord("q"):
-            break
-        elif key == ord("c"):
-            processor.is_3d_mode = not processor.is_3d_mode
-        elif key == ord("n"):
-            processor.cycle_filter(1)
-        elif key == ord("p"):
-            processor.cycle_filter(-1)
-        elif key == ord("s"):
-            cv2.imwrite(f"cap_{int(time.time())}.png", out_frame)
-
-    cap.release()
-    cv2.destroyAllWindows()
-"""
 def main() -> None:
     cfg = PipelineConfig()
     cap = cv2.VideoCapture(cfg.cam_index)
@@ -346,13 +303,11 @@ def main() -> None:
     cam_h = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
     print(f"[INFO] Resolusi kamera: {cam_w}x{cam_h}")
 
-    # Set resolusi ke processor sesuai kamera
     cfg.frame_width = cam_w
     cfg.frame_height = cam_h
 
     processor = PortalProcessor(cfg)
 
-    # Setup window resizable
     cv2.namedWindow("RetroLens Engine", cv2.WINDOW_NORMAL)
     cv2.resizeWindow("RetroLens Engine", cam_w, cam_h)
 
@@ -370,7 +325,7 @@ def main() -> None:
         key = cv2.waitKey(1) & 0xFF
         if key == ord("q"):
             break
-        elif key == ord("f"):  # F = toggle fullscreen
+        elif key == ord("f"):
             is_fullscreen = not is_fullscreen
             if is_fullscreen:
                 cv2.setWindowProperty("RetroLens Engine", cv2.WND_PROP_FULLSCREEN, cv2.WINDOW_FULLSCREEN)
