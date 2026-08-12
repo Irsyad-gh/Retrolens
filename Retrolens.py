@@ -159,15 +159,15 @@ class PortalProcessor:
         self.filters: Dict[str, Callable[[np.ndarray], np.ndarray]] = {
             "dual-tone": FilterBank.dual_tone,
             "thermal": FilterBank.thermal,
-            "sketch": FilterBank.sketch,
-            "pixelate": FilterBank.pixelate,
+            #"sketch": FilterBank.sketch,
+            #"pixelate": FilterBank.pixelate,
             "glitch": FilterBank.glitch,
             "invert": FilterBank.invert,
             "red-channel": FilterBank.red_channel,
             "edge": FilterBank.edge,
             "blur": FilterBank.blur,
-            "cartoon": FilterBank.cartoon,
-            "rainbow-wave": FilterBank.rainbow_wave,
+            #"cartoon": FilterBank.cartoon,
+            #"rainbow-wave": FilterBank.rainbow_wave,
         }
         self.filter_keys = list(self.filters.keys())
         self.active_filter_idx = 0
@@ -194,6 +194,10 @@ class PortalProcessor:
     def secondary_filter_name(self) -> str:
         return self.filter_keys[(self.active_filter_idx + 1) % len(self.filter_keys)]
 
+    @property
+    def tertiary_filter_name(self) -> str:
+        return self.filter_keys[(self.active_filter_idx + 2) % len(self.filter_keys)]
+
     def cycle_filter(self, step: int = 1) -> None:
         self.active_filter_idx = (self.active_filter_idx + step) % len(self.filter_keys)
 
@@ -217,7 +221,6 @@ class PortalProcessor:
         fg = cv2.bitwise_and(processed_roi, mask_3c)
         frame[y : y + h, x : x + w] = cv2.add(bg, fg)
 
-        cv2.polylines(frame, [poly], isClosed=True, color=(255, 255, 255), thickness=2)
         return frame
 
     def process_frame(self, frame: np.ndarray) -> np.ndarray:
@@ -234,8 +237,7 @@ class PortalProcessor:
 
         if results.multi_hand_landmarks:
             for hand_lm in results.multi_hand_landmarks:
-                self.mp_draw.draw_landmarks(frame, hand_lm, self.mp_hands.HAND_CONNECTIONS)
-                
+                # Tracking tangan tetap berjalan di background, tapi tidak digambar ke frame
                 lm = hand_lm.landmark
                 tips = [(int(lm[i].x * self.cfg.frame_width), int(lm[i].y * self.cfg.frame_height)) for i in [4, 8, 12, 16, 20]]
                 all_hand_tips.append(tips)
@@ -257,8 +259,20 @@ class PortalProcessor:
             if self.is_3d_mode:
                 if len(all_hand_tips) == 2:
                     t1, t2 = all_hand_tips[0], all_hand_tips[1]
-                    frame = self.render_portal(frame, [t1[0], t1[1], t1[2], t2[2], t2[1], t2[0]], self.current_filter_name)
-                    frame = self.render_portal(frame, [t1[2], t1[3], t1[4], t2[4], t2[3], t2[2]], self.secondary_filter_name)
+                    # tips index: 0=thumb, 1=index, 2=middle, 3=ring, 4=pinky
+
+                    # Panel 1: dikendalikan 4 jari (jempol + telunjuk kedua tangan)
+                    panel1 = [t1[0], t2[0], t2[1], t1[1]]
+
+                    # Panel 2: 2 titik terhubung dari panel 1 (telunjuk) + 2 jari baru (jari tengah)
+                    panel2 = [t1[1], t2[1], t2[2], t1[2]]
+
+                    # Panel 3: 2 titik terhubung dari panel 2 (jari tengah) + 2 jari baru (jari manis)
+                    panel3 = [t1[2], t2[2], t2[3], t1[3]]
+
+                    frame = self.render_portal(frame, panel1, self.current_filter_name)
+                    frame = self.render_portal(frame, panel2, self.secondary_filter_name)
+                    frame = self.render_portal(frame, panel3, self.tertiary_filter_name)
                 elif len(all_hand_tips) == 1:
                     frame = self.render_portal(frame, all_hand_tips[0], self.current_filter_name)
             else:
@@ -278,7 +292,7 @@ class PortalProcessor:
         return frame
 
     def _draw_hud(self, frame: np.ndarray, is_bowtie: bool) -> None:
-        mode_str = "3D Mesh" if self.is_3d_mode else ("2D Bowtie" if is_bowtie else "2D Quad")
+        mode_str = "3D Mesh (3 sisi)" if self.is_3d_mode else ("2D Bowtie" if is_bowtie else "2D Quad")
         cv2.putText(frame, f"MODE: {mode_str} [Key 'C' / Dual Fist]", (15, 25), cv2.FONT_HERSHEY_SIMPLEX, 0.55, (0, 255, 255), 2)
         cv2.putText(frame, f"FILTER: {self.current_filter_name.upper()} [Pinch / Key 'N'/'P']", (15, 50), cv2.FONT_HERSHEY_SIMPLEX, 0.55, (255, 255, 255), 2)
 

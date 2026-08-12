@@ -1,3 +1,4 @@
-opencv-python
-mediapipe
-numpy
+# IMPORTANT! Python 3.8 - 3.11 required
+numpy<2
+mediapipe==0.10.8
+opencv-python==4.8.1.78
